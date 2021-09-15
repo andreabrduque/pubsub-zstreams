@@ -5,7 +5,7 @@ ThisBuild / organizationName := "example"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "pegasus",
+    name := "pubsub-zstreams",
     libraryDependencies ++= Seq(
       "io.github.kitlangton" %% "zio-magic" % "0.3.8",
       "dev.zio" %% "zio" % "1.0.11",
