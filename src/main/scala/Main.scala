@@ -16,19 +16,19 @@ object MessagesAsString {
   val subscriptionStream =
     PubSubSubscriber.subscribe("hf-data-staging", "my-subscription", config, stringDecoder)
 
-  val program: ZIO[Console with Blocking with Clock, Throwable, Option[Unit]] = subscriptionStream.use { stream =>
-    stream.mapM { value =>
-      for {
-        decoded <- value.value
-        print <- putStrLn(s"decoded: ${decoded}") *> value.ack
-      } yield print
-    }.runDrain
-      .timeout(30.seconds)
-  }
+  val program: ZIO[Console with Blocking with Clock, Throwable, Option[Unit]] = subscriptionStream.mapM { value =>
+    for {
+      decoded <- value.value
+      print <- putStrLn(s"decoded: ${decoded}") *> value.nack
+    } yield print
+  }.runDrain
+    .timeout(30.seconds)
 
 }
 
 object MessagesAsAttributes {
+
+  //this decoder will cause a decoder failure
   implicit val decoder = (message: PubsubMessage) => {
     val messageAsMap = message.getAttributesMap
     val att1 = messageAsMap.get("att1").head.toString
@@ -40,23 +40,19 @@ object MessagesAsAttributes {
   val config = PubSubSubscriberConfig()
   val subscriptionStream =
     PubSubSubscriber.subscribe("hf-data-staging", "my-subscription", config, attributesDecoder)
-  val program: ZIO[Console with Blocking with Clock, Throwable, Option[Unit]] = subscriptionStream.use { stream =>
-    stream.mapM { value =>
-      val action: ZIO[Console, Throwable, Unit] = for {
-        decoded <- value.value
-        print <- putStrLn(s"decoded: ${decoded}") *> value.ack
-      } yield print
+  val program: ZIO[Console with Blocking with Clock, Throwable, Option[Unit]] = subscriptionStream.mapM { value =>
+    val action: ZIO[Console, Throwable, Unit] = for {
+      decoded <- value.value
+      print <- putStrLn(s"decoded: ${decoded}") *> value.ack
+    } yield print
 
-      action.catchSome {
-        case _: DecodingFailure =>
-          putStrLn("decoding failed") *> value.nack
-      }
-    }.runDrain
-      .timeout(30.seconds)
+    action.catchSome {
+      case _: DecodingFailure =>
+        putStrLn("decoding failed") *> value.nack
+    }
+  }.runDrain
+    .timeout(30.seconds)
 
-  }
-
-  //this decoder will cause a decoder failure
   case class MessageAttributes(att1: String, att2: String)
 
 }
@@ -64,6 +60,6 @@ object MessagesAsAttributes {
 object Main extends App {
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
-    MessagesAsString.program.exitCode
+    MessagesAsAttributes.program.exitCode
 
 }
